@@ -70,7 +70,6 @@ ordprd2a = inner_join(ordprd2a, prod_top80pct[,c("product_id"), drop = FALSE], b
 # Find products with different patterns of purchase timing by hour of day with PCA
 # Dataset for PCA has for each product (rows), the percentage of product orders at each hour of day (column)
 
-ordprd2b = data.frame(ordprd2a %>% ungroup()) 
 ordprd2a_s = ordprd2a %>% select(-numorders) %>% spread(order_hour_of_day, pctorders, fill = 0)
 
 # Plot a row (product_id - 1, chocolate sandwich cookies)
@@ -94,7 +93,7 @@ p_cumvar = ggplot() +
 p_cumvar
 
 # Get loadings plot for 2 principal components
-numcomp = 4
+numcomp = 2
 
 pc_loadings = data.frame(pc_mdl$rotation)
 pc_loadings$hour_of_day = seq(0,23)
@@ -111,21 +110,33 @@ pc_scores = data.frame(pc_mdl$x)
 pc_scores$product_id = pcdata$product_id
 pc_scores = inner_join(pc_scores, prods[,c("product_id", "product_name")], by = "product_id")
 
-pc_scores_pick = pc_scores %>% arrange(desc(PC3))
+pc_scores_pick = pc_scores %>% arrange(desc(PC2))
 prod_top20 = pc_scores_pick$product_name[1:20]
 prod_bot20 = pc_scores_pick$product_name[(nrow(pc_scores_pick) - 19):nrow(pc_scores_pick)]
 
 # plot hourly purchase profile for a list of products
 
-prodlist = prod_bot20
-prodlistdf = prods[prods$product_name %in% prodlist, c("product_id", "product_name")]
+prodlist = c(prod_top20, rev(prod_bot20))
+prodlist_label = c(rep("top 20 scores", 20), rep("bottom 20 scores", 20))
+scoreid = c(seq(1,20), seq(1,20))
+prodlistdf = data.frame(product_name = prodlist, prodlist_label, scoreid, stringsAsFactors = FALSE)
+prodlistdf = inner_join(prodlistdf, prods[, c("product_id", "product_name")], by = "product_name")
 
-prodlist_profile = inner_join(ordprd2a_s, prodlistdf, by = "product_id")
+prodlist_profile = inner_join(ordprd2a_s, prodlistdf[, c("product_id", "product_name", "prodlist_label")], by = "product_id")
 
-prodlist_profile_g = prodlist_profile %>% gather(hour_of_day, pctorders, -product_name, -product_id)
+prodlist_profile_g = prodlist_profile %>% gather(hour_of_day, pctorders, -product_name, -product_id, -prodlist_label)
+prodlist_text = bind_rows(data.frame(x = 3, y = 0.1, label = paste(prod_top20, collapse = "\n"), 
+                                      prodlist_label = "top 20 scores", stringsAsFactors = FALSE),
+                           data.frame(x = 3, y = 0.1, label = paste(prod_bot20, collapse = "\n"), 
+                                      prodlist_label = "bottom 20 scores", stringsAsFactors = FALSE)
+                           )
 
-ggplot() + geom_line(data = prodlist_profile_g, aes(x = as.numeric(hour_of_day), y = pctorders, group = product_name)) +
-     theme_bw()
+ggplot() + 
+  geom_line(data = prodlist_profile_g, aes(x = as.numeric(hour_of_day), y = pctorders, 
+                                           group = product_name, color = prodlist_label)) +
+  geom_text(data = prodlist_text, aes(x, y, label = label, color = prodlist_label), size = 3) + facet_grid(prodlist_label~.) + 
+  theme_bw()
+
 
 
 # Top products ordered by week of day
@@ -133,17 +144,17 @@ ordprd3 = inner_join(ordprd, orders[, c("order_id", "order_dow")], by = "order_i
 
 ordprd3a = ordprd3 %>% group_by(product_id, order_dow) %>% 
   summarize(numorders = n()) %>% mutate(pctorders = numorders/sum(numorders))
-ordprd3a = inner_join(ordprd3a, prodcnt80[,c("product_id"), drop = FALSE], by = "product_id")
-ordprd3b = ordprd3a %>% group_by(order_dow) %>% arrange(desc(pctorders)) %>% 
-  filter(row_number() <= 10) %>% arrange(order_dow)
-ordprd3b = inner_join(ordprd3b, prods, by = "product_id")
+ordprd3a = inner_join(ordprd3a, prod_top80pct[,c("product_id"), drop = FALSE], by = "product_id")
 
 # PCA of purchase timing (day of week)
+ordprd3a_s = ordprd3a %>% select(-numorders) %>% spread(order_dow, pctorders, fill = 0)
 
-ordprd3b = data.frame(ordprd3a %>% ungroup()) 
-ordprd3bs = ordprd3b %>% select(-numorders) %>% spread(order_dow, pctorders, fill = 0)
+pcmdl_dow = getpca(pcdata = ordprd3a_s)
+pcmdl_dow$p_cumvar
 
-tmp = prcomp(x = ordprd3bs[,-1])
+pcplots_dow = get_pcaplots(pcmdl_dow, numcomp = 2, ordprd3a_s, ordprd3a_s, prods, seq(0,6))
+
+tmp = prcomp(x = ordprd3a_s[,-1])
 plot(tmp)
 str(tmp)
 plot(tmp$rotation[,1], type = "l")
@@ -152,18 +163,18 @@ plot(tmp$rotation[,3], type = "l")
 plot(tmp$rotation[,4], type = "l")
 
 x1 = tmp$x[,2]
-x1df = data.frame(product_id = ordprd3bs$product_id, x1 = x1)
+x1df = data.frame(product_id = ordprd3a_s$product_id, x1 = x1)
 x1df = inner_join(x1df, prods[,c("product_id", "product_name")], by = "product_id")
 x1df = x1df %>% arrange(desc(x1))
 
-chktop = inner_join(ordprd3bs, x1df[1:20,c("product_id", "product_name")], by = "product_id")
+chktop = inner_join(ordprd3a_s, x1df[1:20,c("product_id", "product_name")], by = "product_id")
 
 chktop_g = chktop %>% gather(wkday, pctorders, -product_name, -product_id)
 
 ggplot() + geom_line(data = chktop_g, aes(x = as.numeric(wkday), y = pctorders, group = product_name)) +
   theme_bw()
 
-chkbot = inner_join(ordprd3bs, x1df[(nrow(x1df)-9):nrow(x1df),c("product_id", "product_name")], by = "product_id")
+chkbot = inner_join(ordprd3a_s, x1df[(nrow(x1df)-9):nrow(x1df),c("product_id", "product_name")], by = "product_id")
 
 chkbot_g = chkbot %>% gather(wkday, pctorders, -product_name, -product_id)
 
