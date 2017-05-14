@@ -20,7 +20,8 @@ getpca = function(pcdata){
   
 }
 
-get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange){
+# Get PC loading plots and plots of items that have top/bottom 20 scores based on a principal component
+get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange, xlabstr){
 
   # Get PC loadings
   pc_loadings = data.frame(pc_mdl$pc_mdl$rotation)
@@ -41,6 +42,8 @@ get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange){
   
   # get plot of orders for items with top and bottom scores for each of the principal components that is chosen
   p_items = list()
+  prodlist_topbot20 = list()
+  
   for(i in 1:numcomp){
     
     # Sort by score for principal component i
@@ -52,6 +55,7 @@ get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange){
     
     # plot orders in original data for the top and bottom 20 items in terms of PC score
     
+    prodlist_topbot20[[i]] = data.frame(top_scores = prod_top20, bottom_scores = rev(prod_bot20))
     prodlist = c(prod_top20, rev(prod_bot20))
     prodlist_label = c(rep("top 20 scores", 20), rep("bottom 20 scores", 20))
     scoreid = c(seq(1,20), seq(1,20))
@@ -70,11 +74,28 @@ get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange){
     p_items[[i]] = ggplot() + 
       geom_line(data = prodlist_profile_g, aes(x = as.numeric(xrange), y = pctorders, 
                                                group = product_name, color = prodlist_label)) +
-      geom_text(data = prodlist_text, aes(x, y, label = label, color = prodlist_label), size = 3) + facet_grid(prodlist_label~.) + 
-      theme_bw()
+                       xlab(xlabstr) + ylab("% orders") + 
+                       scale_x_continuous(breaks = xrange) + scale_y_continuous(labels = percent) + 
+                       theme_bw() + theme(legend.title = element_blank())
+
     
   }
   
-  return(list(p_pcload = p_pcload, p_items = p_items))
+  return(list(p_pcload = p_pcload, p_items = p_items, prodlist_topbot20 = prodlist_topbot20))
+}
+
+# plot scores plot of PC1 and PC2 and color points that are top/bottom scores in terms of a principal component
+get_scorepairplts = function(pc_mdl, pcrnk20){
+  # get PC scores
+  pc_scores = data.frame(pc_mdl$pc_mdl$x)
+  
+  # Sort by score for principal component i
+  pc_scores_pick = pc_scores[order(-pc_scores[[pcrnk20]]), ]
+  
+  pc_scores_pick$label = c(rep(paste0("top 20", pcrnk20), 20), rep("black", nrow(pc_scores_pick) - 40), rep(paste0("bottom 20", pcrnk20), 20))
+  p_scores = ggplot() + geom_point(data = pc_scores_pick, aes(x = PC1, y = PC2, color = label)) + theme_bw()
+  
+  return(list(p_scores = p_scores))
+  
 }
 

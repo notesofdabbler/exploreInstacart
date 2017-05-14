@@ -93,7 +93,7 @@ p_cumvar = ggplot() +
 p_cumvar
 
 # Get loadings plot for 2 principal components
-numcomp = 2
+numcomp = 4
 
 pc_loadings = data.frame(pc_mdl$rotation)
 pc_loadings$hour_of_day = seq(0,23)
@@ -110,7 +110,10 @@ pc_scores = data.frame(pc_mdl$x)
 pc_scores$product_id = pcdata$product_id
 pc_scores = inner_join(pc_scores, prods[,c("product_id", "product_name")], by = "product_id")
 
-pc_scores_pick = pc_scores %>% arrange(desc(PC2))
+pc_scores_pick = pc_scores %>% arrange(desc(PC3))
+pc_scores_pick$label = c(rep("top scores", 20), rep("other", nrow(pc_scores_pick) - 40), rep("bottom scores", 20))
+ggplot() + geom_point(data = pc_scores_pick, aes(x = PC1, y = PC2, color = label)) + theme_bw()
+
 prod_top20 = pc_scores_pick$product_name[1:20]
 prod_bot20 = pc_scores_pick$product_name[(nrow(pc_scores_pick) - 19):nrow(pc_scores_pick)]
 
@@ -152,110 +155,38 @@ ordprd3a_s = ordprd3a %>% select(-numorders) %>% spread(order_dow, pctorders, fi
 pcmdl_dow = getpca(pcdata = ordprd3a_s)
 pcmdl_dow$p_cumvar
 
-pcplots_dow = get_pcaplots(pcmdl_dow, numcomp = 2, ordprd3a_s, ordprd3a_s, prods, seq(0,6))
+pcplots_dow = get_pcaplots(pcmdl_dow, numcomp = 2, ordprd3a_s, ordprd3a_s, prods, seq(0,6), "day of week")
+pcplots_dow$p_pcload
 
-tmp = prcomp(x = ordprd3a_s[,-1])
-plot(tmp)
-str(tmp)
-plot(tmp$rotation[,1], type = "l")
-plot(tmp$rotation[,2], type = "l")
-plot(tmp$rotation[,3], type = "l")
-plot(tmp$rotation[,4], type = "l")
+pcscores_dow = get_scorepairplts(pcmdl_dow, "PC1")
+pcscores_dow$p_scores
 
-x1 = tmp$x[,2]
-x1df = data.frame(product_id = ordprd3a_s$product_id, x1 = x1)
-x1df = inner_join(x1df, prods[,c("product_id", "product_name")], by = "product_id")
-x1df = x1df %>% arrange(desc(x1))
+pcplots_prior$prodlist_topbot20[[1]]
+pcplots_dow$p_items[[1]]
 
-chktop = inner_join(ordprd3a_s, x1df[1:20,c("product_id", "product_name")], by = "product_id")
-
-chktop_g = chktop %>% gather(wkday, pctorders, -product_name, -product_id)
-
-ggplot() + geom_line(data = chktop_g, aes(x = as.numeric(wkday), y = pctorders, group = product_name)) +
-  theme_bw()
-
-chkbot = inner_join(ordprd3a_s, x1df[(nrow(x1df)-9):nrow(x1df),c("product_id", "product_name")], by = "product_id")
-
-chkbot_g = chkbot %>% gather(wkday, pctorders, -product_name, -product_id)
-
-ggplot() + geom_line(data = chkbot_g, aes(x = as.numeric(wkday), y = pctorders, group = product_name)) +
-  theme_bw()
-
-# market basket
-
-aisleord = inner_join(ordprd, prods[, c("product_id", "aisle_id")], by = "product_id")
-aisleord2 = aisleord %>% group_by(order_id, aisle_id) %>% summarize(numorders = n())
-aisleord3 = inner_join(aisleord2, orders[, c("order_id", "user_id")], by = "order_id")
-aisleord4 = aisleord3 %>% group_by(user_id, aisle_id) %>% 
-     summarize(numorders = sum(numorders)) %>% mutate(pctorders = numorders/sum(numorders))
-
-aisleord4s = aisleord4 %>% select(-numorders) %>% spread(aisle_id, pctorders, fill = 0)
-
-tmp = orders %>% group_by(user_id) %>% 
-        summarize(numorders = n(), daysprior_md = median(days_since_prior_order, na.rm = TRUE)) 
-tmp2 = tmp %>% group_by(numorders) %>% summarize(daysprior_mdavg = mean(daysprior_md))
-
-ggplot(tmp2) + geom_point(aes(x = numorders, y = daysprior_mdavg)) + theme_bw()
-
-# PCA users vs aisles
-tmp = prcomp(aisleord4s[,-1])
-plot(tmp)
-tmpvar = cumsum(tmp$sdev^2)/sum(tmp$sdev^2)
-
-
-tmpload = data.frame(tmp$rotation)
-tmpload$aisle_id = as.numeric(names(aisleord4s[-1]))
-tmpload = inner_join(tmpload, aisles, by = "aisle_id")
-tmpload = tmpload[,c("aisle","PC1","PC2","PC3","PC4","PC5","PC6","PC7","PC8")]
-tmpload_g = tmpload %>% gather(pc, pcload, - aisle)
-tmpload_g$abspcload = abs(tmpload_g$pcload)
-tmpload_g = tmpload_g %>% group_by(pc) %>% arrange(desc(abspcload)) %>% 
-                 filter(row_number() <= 3) %>% arrange(pc)
-
-plot(tmp$rotation[,1], type = "l")
-plot(tmp$rotation[,2], type = "l")
-plot(tmp$rotation[,3], type = "l")
-plot(tmp$rotation[,4], type = "l")
-
+pcplots_prior$prodlist_topbot20[[2]]
+pcplots_dow$p_items[[2]]
 
 # Top products ordered by (days since prior order)
-ordprd4 = inner_join(ordprd, orders[, c("order_id", "days_since_prior_order")], by = "order_id")
+ordprd4 = inner_join(ordprd, orders[!is.na(orders$days_since_prior_order), c("order_id", "days_since_prior_order")], by = "order_id")
 
 ordprd4a = ordprd4 %>% group_by(product_id, days_since_prior_order) %>% 
   summarize(numorders = n()) %>% mutate(pctorders = numorders/sum(numorders))
-ordprd4a = inner_join(ordprd4a, prodcnt80[,c("product_id"), drop = FALSE], by = "product_id")
+ordprd4a = inner_join(ordprd4a, prod_top80pct[,c("product_id"), drop = FALSE], by = "product_id")
 
 # PCA of purchase timing (days since prior order)
 
-ordprd4b = data.frame(ordprd4a %>% ungroup()) 
-ordprd4bs = ordprd4b %>% select(-numorders) %>% spread(days_since_prior_order, pctorders, fill = 0)
+ordprd4a_s = ordprd4a %>% select(-numorders) %>% spread(days_since_prior_order, pctorders, fill = 0)
 
-tmp = prcomp(x = ordprd4bs[,-1])
-plot(tmp)
-str(tmp)
-plot(tmp$rotation[,1], type = "l")
-plot(tmp$rotation[,2], type = "l")
-plot(tmp$rotation[,3], type = "l")
-plot(tmp$rotation[,4], type = "l")
+pcmdl_prior = getpca(pcdata = ordprd4a_s)
+pcmdl_prior$p_cumvar
 
-x1 = tmp$x[,2]
-x1df = data.frame(product_id = ordprd4bs$product_id, x1 = x1)
-x1df = inner_join(x1df, prods[,c("product_id", "product_name")], by = "product_id")
-x1df = x1df %>% arrange(desc(x1))
+pcplots_prior = get_pcaplots(pcmdl_prior, numcomp = 2, ordprd4a_s, ordprd4a_s, prods, seq(0, 30), "days since prior order")
+pcplots_prior$p_pcload
+pcplots_prior$prodlist_topbot20[[1]]
 
-chktop = inner_join(ordprd4bs, x1df[1:20,c("product_id", "product_name")], by = "product_id")
+pcscores_prior = get_scorepairplts(pcmdl_prior, "PC1")
+pcscores_prior$p_scores
 
-chktop_g = chktop %>% gather(daysprior, pctorders, -product_name, -product_id)
+pcplots_prior$p_items[[2]]
 
-ggplot() + geom_line(data = chktop_g, aes(x = as.numeric(daysprior), y = pctorders, group = product_name)) +
-  theme_bw()
-
-chkbot = inner_join(ordprd4bs, x1df[(nrow(x1df)-9):nrow(x1df),c("product_id", "product_name")], by = "product_id")
-
-chkbot_g = chkbot %>% gather(daysprior, pctorders, -product_name, -product_id)
-
-ggplot() + geom_line(data = chkbot_g, aes(x = as.numeric(daysprior), y = pctorders, group = product_name)) +
-  theme_bw()
-
-tmpdaysprior = orders %>% group_by(days_since_prior_order) %>% summarize(cnt = n())
-ggplot(tmpdaysprior) + geom_line(aes(x = days_since_prior_order, y = cnt)) + theme_bw()
