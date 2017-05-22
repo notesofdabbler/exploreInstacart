@@ -1,19 +1,34 @@
 #+
-knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 #' ---
 #' title: "Exploring Instacart Dataset with PCA"
 #' author: "Notesofdabbler"
-#' date: "May 14, 2017"
+#' date: "2017-05-22"
 #' ---
 #'
-#' I wanted to explore the recently released [Instacart dataset](https://tech.instacart.com/3-million-instacart-orders-open-sourced-d40d29ead6f2) 
-#' to see if I can explore patterns of the kind [shown in their blog](https://cdn-images-1.medium.com/max/800/1*wKfV6OV-_1Ipwrl7AjjSuw.png). 
-#' I wanted to use Principal Component Analysis (PCA) to find different purchase patterns by:
+#' Recently, [Instacart](https://www.instacart.com/) released a [dataset](https://tech.instacart.com/3-million-instacart-orders-open-sourced-d40d29ead6f2) 
+#' of ~3 million orders made by ~200,000 users at different days of week and times of day. There is also an ongoing [Kaggle competition](https://www.kaggle.com/c/instacart-market-basket-analysis) 
+#' to predict which products a user will buy again. My goal here is more modest where I just wanted to explore the dataset to find patterns of
+#' purchasing behaviour by hour of day, day of week and number of days prior to current order. An [example](https://cdn-images-1.medium.com/max/800/1*wKfV6OV-_1Ipwrl7AjjSuw.png)
+#' of this kind of analysis is also shown in their blog. Here I wanted to explore if I can find such kind of patters by using 
+#' the very common and popular dimension reduction technique - Principal Component Analysis (PCA). There are several great
+#' resources that introduce PCA if you are not familiar with PCA. One of the resources is the set of 
+#' [video lectures](https://www.r-bloggers.com/in-depth-introduction-to-machine-learning-in-15-hours-of-expert-videos/) on 
+#' machine learning by Prof. Hastie and Prof. Tibshirani.
 #' 
-#'  * Hour of day
-#'  * Day of week
-#'  * Number of days before when prior order was placed
-#'
+#' The general approach that I have followed is:
+#' 
+#' *  Do principal component analysis on the data (each row is a product, each column is a time period 
+#' (hour of day, day of week or number of days prior to current order))
+#' *  Review the loading plots of first two principal components to see purchase patters
+#' *  Identify top 20 products that have high scores in either first or the second principal component
+#' *  Check the purchasing pattern by checking the average number of orders for the products that were identified 
+#' as having top scores in one of the principal components. 
+#' 
+#' **Spoiler Alert**: Since my analysis is basic, don't be disappointed if there are no big Aha moments (there will be none). But I think it is still 
+#' fun to see how we can extract such information directly from data.
+#' 
+#' We first load the libraries needed for the analysis
 #+
 # load libraries
 library(readr)
@@ -22,7 +37,7 @@ library(ggplot2)
 library(scales)
 library(tidyr)
 
-# source functions
+# source functions that are used for PCA analysis, extracting key information from PCA results
 source("pca_fns.R")
 
 #'
@@ -61,7 +76,7 @@ nrow(orders)
 #' * The number of users are ~200,000. 
 #' * The number of orders are ~3.4M.
 
-#' Find products that account for top 80% of orders. We will work with this product set through
+#' Next, we find products that account for top 80% of orders. We will work with this product set through
 #' the rest of the analysis
 
 #+
