@@ -14,7 +14,7 @@ getpca = function(pcdata){
     xlab("PC") + ylab("Cumulative Variance") + 
     scale_x_continuous(breaks = 1:length(pc_mdl_var)) + 
     scale_y_continuous(labels = percent, breaks = seq(0,1,by=0.1)) + expand_limits(y = 0) + 
-    theme_bw()
+    theme_bw(20)
   
   return(list(pc_mdl = pc_mdl, p_cumvar = p_cumvar))
   
@@ -33,7 +33,7 @@ get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange, xlabst
   
   # plot PC loadings
   p_pcload = ggplot() + geom_line(data = pc_loadings_g, aes(x = xrange, y = pcload, color = pc)) +
-    theme_bw()
+    theme_bw(20)
 
   # get PC scores
   pc_scores = data.frame(pc_mdl$pc_mdl$x)
@@ -76,7 +76,7 @@ get_pcaplots = function(pc_mdl, numcomp, origdata, pcdata, prods, xrange, xlabst
                                                group = product_name, color = prodlist_label)) +
                        xlab(xlabstr) + ylab("% orders") + 
                        scale_x_continuous(breaks = xrange) + scale_y_continuous(labels = percent) + 
-                       theme_bw() + theme(legend.title = element_blank())
+                       theme_bw(20) + theme(legend.title = element_blank())
 
     
   }
@@ -93,7 +93,7 @@ get_scorepairplts = function(pc_mdl, pcrnk20){
   pc_scores_pick = pc_scores[order(-pc_scores[[pcrnk20]]), ]
   
   pc_scores_pick$label = c(rep(paste0("top 20", pcrnk20), 20), rep("black", nrow(pc_scores_pick) - 40), rep(paste0("bottom 20", pcrnk20), 20))
-  p_scores = ggplot() + geom_point(data = pc_scores_pick, aes(x = PC1, y = PC2, color = label)) + theme_bw()
+  p_scores = ggplot() + geom_point(data = pc_scores_pick, aes(x = PC1, y = PC2, color = label)) + theme_bw(20)
   
   return(list(p_scores = p_scores))
   

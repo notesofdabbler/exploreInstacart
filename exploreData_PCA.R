@@ -1,5 +1,5 @@
-#+
-knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+#+ echo = FALSE
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6)
 #' ---
 #' title: "Exploring Instacart Dataset with PCA"
 #' author: "Notesofdabbler"
@@ -9,7 +9,7 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 #' Recently, [Instacart](https://www.instacart.com/) released a [dataset](https://tech.instacart.com/3-million-instacart-orders-open-sourced-d40d29ead6f2) 
 #' of ~3 million orders made by ~200,000 users at different days of week and times of day. There is also an ongoing [Kaggle competition](https://www.kaggle.com/c/instacart-market-basket-analysis) 
 #' to predict which products a user will buy again. My goal here is more modest where I just wanted to explore the dataset to find patterns of
-#' purchasing behaviour by hour of day, day of week and number of days prior to current order. An [example](https://cdn-images-1.medium.com/max/800/1*wKfV6OV-_1Ipwrl7AjjSuw.png)
+#' purchasing behaviour by hour of day, day of week and number of days since prior order. An [example](https://cdn-images-1.medium.com/max/800/1*wKfV6OV-_1Ipwrl7AjjSuw.png)
 #' of this kind of analysis is also shown in their blog. Here I wanted to explore if I can find such kind of patters by using 
 #' the very common and popular dimension reduction technique - Principal Component Analysis (PCA). There are several great
 #' resources that introduce PCA if you are not familiar with PCA. One of the resources is the set of 
@@ -19,10 +19,10 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 #' The general approach that I have followed is:
 #' 
 #' *  Do principal component analysis on the data (each row is a product, each column is a time period 
-#' (hour of day, day of week or number of days prior to current order))
-#' *  Review the loading plots of first two principal components to see purchase patters
-#' *  Identify top 20 products that have high scores in either first or the second principal component
-#' *  Check the purchasing pattern by checking the average number of orders for the products that were identified 
+#' (hour of day, day of week or number of days since prior order))
+#' *  Review the loading plots of first two principal components to see purchase patterns and check the variance accounted by them.
+#' *  Identify top 20 products that have high absolute scores in either first or the second principal component
+#' *  Check the purchasing pattern by computing the percentage of orders in each time period for the products that were identified 
 #' as having top scores in one of the principal components. 
 #' 
 #' **Spoiler Alert**: Since my analysis is basic, don't be disappointed if there are no big Aha moments (there will be none). But I think it is still 
@@ -36,6 +36,7 @@ library(dplyr)
 library(ggplot2)
 library(scales)
 library(tidyr)
+library(htmlTable)
 
 # source functions that are used for PCA analysis, extracting key information from PCA results
 source("pca_fns.R")
@@ -75,7 +76,7 @@ nrow(orders)
 #' 
 #' * The number of users are ~200,000. 
 #' * The number of orders are ~3.4M.
-
+#'
 #' Next, we find products that account for top 80% of orders. We will work with this product set through
 #' the rest of the analysis
 
@@ -89,7 +90,7 @@ prod_top80pct = prod_orders %>% filter(prod_orders$pctorders <= 80)
 #' The number of products are ~50K or which ~5K account for 80% of total orders
 #'
 #'## PCA to find patterns of purchase by hour of day
-
+#' We first explore the number of orders by day of week and hour of day.
 #+
 # orders by day of week/hour of day
 wkhr_orders = orders %>% group_by(order_dow, order_hour_of_day) %>% summarize(numorders = n())
@@ -124,7 +125,7 @@ ordprd2a_s = ordprd2a %>% select(-numorders) %>% spread(order_hour_of_day, pctor
 ordprd2a_sample = data.frame(hour_of_day = names(ordprd2a_s)[-1], pctorders = t(ordprd2a_s[ordprd2a_s$product_id == 24852,-1]))
 ggplot() + geom_line(data = ordprd2a_sample, aes(x = as.numeric(hour_of_day), y = pctorders)) + theme_bw()
 
-#' Next I will do a PCA on this data. Since all the data is in percentages, I didn't do any
+#' Next we will do a PCA on this data. Since all the data is in percentages, I didn't do any
 #' further scaling of data
 
 #+
@@ -141,7 +142,7 @@ p_cumvar = ggplot() +
            xlab("PC") + ylab("Cumulative Variance") + 
            scale_x_continuous(breaks = 1:length(pc_mdl_var)) + 
            scale_y_continuous(labels = percent, breaks = seq(0,1,by=0.1)) + expand_limits(y = 0) + 
-           theme_bw()
+           theme_bw(20)
 p_cumvar
 
 #' The plot of cumulative variance shows that first component accounts for 44% of variance,
@@ -160,7 +161,7 @@ pcfilt = paste0("PC",seq(1,numcomp))
 pc_loadings_g = pc_loadings_g[pc_loadings_g$pc %in% pcfilt,]
 
 p_pcload = ggplot() + geom_line(data = pc_loadings_g, aes(x = hour_of_day, y = pcload, color = pc)) +
-             theme_bw()
+             theme_bw(20)
 p_pcload
 
 #' First principal component loading PC1 indicates a pattern of either higher percentage of purcahses
@@ -201,14 +202,14 @@ ggplot() +
                                            group = product_name, color = prodlist_label)) + 
          xlab("Hour of Day") + ylab("% orders") + 
          scale_x_continuous(breaks = seq(0,23)) + scale_y_continuous(labels = percent) + 
-         theme_bw() + theme(legend.title = element_blank())
+         theme_bw(20) + theme(legend.title = element_blank())
 
 #' Below is the table that lists the actual products that are in top and bottom scores of PC1. 
 #' Ice cream purchases tend to occur more in the evening. Items like granola bars, krispie treats, 
 #' apples are purchased more in the morning.
 #' 
 #+
-prodlist_topbot20
+htmlTable(prodlist_topbot20)
 
 #' ## PCA to find patterns of purchase by day of week
 #' Dataset for PCA has for each product (rows), the percentage of product orders at each day of week (column)
@@ -218,11 +219,11 @@ ordprd3 = inner_join(ordprd, orders[, c("order_id", "order_dow")], by = "order_i
 ordprd3a = ordprd3 %>% group_by(product_id, order_dow) %>% 
   summarize(numorders = n()) %>% mutate(pctorders = numorders/sum(numorders))
 ordprd3a = inner_join(ordprd3a, prod_top80pct[,c("product_id"), drop = FALSE], by = "product_id")
+ordprd3a_s = ordprd3a %>% select(-numorders) %>% spread(order_dow, pctorders, fill = 0)
 
 #' The different analysis for PCA done for the case of purchase by hour of day have been wrapped 
 #' into 3 functions that are defined in `pca_funs.R` (code)[pca_funs.R]
 #+
-ordprd3a_s = ordprd3a %>% select(-numorders) %>% spread(order_dow, pctorders, fill = 0)
 
 # perform PCA and plot cumulative variance
 pcmdl_dow = getpca(pcdata = ordprd3a_s)
@@ -242,14 +243,14 @@ pcplots_dow$p_items[[1]]
 #' The table below shows the names of products with top and bottom 20 scores on PC1. It looks like
 #' cookies and chocolates are bought less in weekends compared to cooking items.
 #+
-pcplots_dow$prodlist_topbot20[[1]]
+htmlTable(pcplots_dow$prodlist_topbot20[[1]])
 #' The products with high scores on second component would tend to be purchased more at the end of 
 #' the week and products with low scores on first component would tend to be purchased more at the beginning 
 #' of the week. The plot of products having top and bottom 20 scores on PC2 is shown next.
 #+
 pcplots_dow$p_items[[2]]
 #' Looks like some wine and vodka is purchased more as the week progresses.
-pcplots_dow$prodlist_topbot20[[2]]
+htmlTable(pcplots_dow$prodlist_topbot20[[2]])
 
 #' ## PCA to find patterns of purchase by days since prior order
 
@@ -260,12 +261,9 @@ ordprd4 = inner_join(ordprd, orders[!is.na(orders$days_since_prior_order), c("or
 ordprd4a = ordprd4 %>% group_by(product_id, days_since_prior_order) %>% 
   summarize(numorders = n()) %>% mutate(pctorders = numorders/sum(numorders))
 ordprd4a = inner_join(ordprd4a, prod_top80pct[,c("product_id"), drop = FALSE], by = "product_id")
-
-# PCA of purchase timing (days since prior order)
-
 ordprd4a_s = ordprd4a %>% select(-numorders) %>% spread(days_since_prior_order, pctorders, fill = 0)
 
-# Do a PCA
+# PCA of purchase timing (days since prior order)
 pcmdl_prior = getpca(pcdata = ordprd4a_s)
 pcmdl_prior$p_cumvar
 
@@ -283,7 +281,7 @@ pcplots_prior$p_pcload
 pcplots_prior$p_items[[1]]
 #' Items like trash bag, laundary detergents, towels are in orders that are made less often (longer than once per month)
 #' whereas the food/drink related items are in orders that are made more frequently (less than a week)
-pcplots_prior$prodlist_topbot20[[1]]
+htmlTable(pcplots_prior$prodlist_topbot20[[1]])
 
 #' Products with high scores in principal component 2 will tend to have higher percentage of orders
 #' with days since previous order of less than a week and products with low scores in principal
@@ -293,7 +291,7 @@ pcplots_prior$p_items[[2]]
 #' Juices, milk and wine tend to be in orders who frequency is less than a week. Items like Greek Yogurt,
 #' Apples and Granola bar are in orders who frequency is weekly.
 #+
-pcplots_prior$prodlist_topbot20[[2]]
+htmlTable(pcplots_prior$prodlist_topbot20[[2]])
 #'
 #'## Session Info
 #+
